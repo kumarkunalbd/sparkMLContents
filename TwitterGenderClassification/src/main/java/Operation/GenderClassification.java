@@ -221,32 +221,32 @@ public class GenderClassification {
 				df1IdfSet.show();
 				System.out.println("df1IdfSet Row Count  ::"+df1IdfSet.count());
 				
-				/*Tokenizer tokenizer2 = new Tokenizer()
+				Tokenizer tokenizer2 = new Tokenizer()
 						.setInputCol(selectedColumn2)
-						.setOutputCol("tokenizerwords2");*/
-				tokenizer.setInputCol(selectedColumn2).setOutputCol("tokenizerwords3");
-				Dataset<Row> df4 = tokenizer.transform(df1IdfSet);    
+						.setOutputCol("tokenizerwords2");
+				/*tokenizer.setInputCol(selectedColumn2).setOutputCol("tokenizerwords3");
+				Dataset<Row> df4 = tokenizer.transform(df1IdfSet);    */
 				// Remove the stop words
-				/*StopWordsRemover remover2 = new StopWordsRemover()
+				StopWordsRemover remover2 = new StopWordsRemover()
 						.setInputCol(tokenizer2.getOutputCol())
-						.setOutputCol("filtered2");*/
+						.setOutputCol("filtered2");
 				
-				remover.setInputCol("tokenizerwords3").setOutputCol("filtered2");
+				//remover.setInputCol("tokenizerwords3").setOutputCol("filtered2");
 				//Dataset<Row> df5 = tokenizer.transform(df4); 
 				
 				// Create the Term Frequency Matrix
-				/*HashingTF hashingTF2 = new HashingTF()
+				HashingTF hashingTF2 = new HashingTF()
 						.setNumFeatures(1000)
 						.setInputCol(remover2.getOutputCol())
-						.setOutputCol("numFeatures2");*/
-				hashingTF.setInputCol("filtered2").setOutputCol("numFeatures2");
+						.setOutputCol("numFeatures2");
+				//hashingTF.setInputCol("filtered2").setOutputCol("numFeatures2");
 				//Dataset<Row> df6 = tokenizer.transform(df5); 
 				
 				// Calculate the Inverse Document Frequency 
-				/*IDF idf2 = new IDF()
+				IDF idf2 = new IDF()
 						.setInputCol(hashingTF2.getOutputCol())
-						.setOutputCol("features2");*/
-				idf.setInputCol("numFeatures2").setOutputCol("features2");
+						.setOutputCol("features2");
+				//idf.setInputCol("numFeatures2").setOutputCol("features2");
 				//Dataset<Row> df7 = tokenizer.transform(df6);
 				
 				Pipeline pipeline2 = new Pipeline().setStages(new PipelineStage [] {tokenizer, remover,hashingTF, idf});
@@ -271,9 +271,9 @@ public class GenderClassification {
 				        .setInputCols(new String[]{"features1", "features2"})
 				        .setOutputCol("features");
 
-				Dataset<Row> assembledFeatures = assembler.transform(df1IdfSetJoined);
+				//Dataset<Row> assembledFeatures = assembler.transform(df1IdfSetJoined);
 				
-				assembledFeatures.show();
+				//assembledFeatures.show();
 				
 				/*String idfColumnn1 = idf.getOutputCol();
 				String idfColumnn2 = idf2.getOutputCol();*/
@@ -296,7 +296,7 @@ public class GenderClassification {
 				
 				// Create and Run Random Forest Pipeline
 				Pipeline pipelineRF = new Pipeline()
-						.setStages(new PipelineStage[] {labelindexer, tokenizer, remover,hashingTF, idf,rf,labelConverter});	
+						.setStages(new PipelineStage[] {labelindexer, tokenizer, remover,hashingTF,idf,tokenizer2,remover2,hashingTF2,idf2,assembler,rf,labelConverter});	
 				// Fit the pipeline to training documents.
 				PipelineModel modelRF = pipelineRF.fit(traindata);		
 				// Make predictions on test documents.
@@ -306,7 +306,7 @@ public class GenderClassification {
 
 				// Create and Run Decision Tree Pipeline
 				Pipeline pipelineDT = new Pipeline()
-						.setStages(new PipelineStage[] {labelindexer, tokenizer, remover,hashingTF, idf, dt,labelConverter});	
+						.setStages(new PipelineStage[] {labelindexer, tokenizer, remover,hashingTF, idf,tokenizer2,remover2, hashingTF2,idf2,assembler,dt,labelConverter});	
 				// Fit the pipeline to training documents.
 				PipelineModel modelDT = pipelineDT.fit(traindata);		
 				// Make predictions on test documents.
