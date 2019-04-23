@@ -70,7 +70,7 @@ public class GenderClassification {
 				// drop the columns which are non relevant
 				Dataset<Row> selectedColumnDataSet = mainDataSet;
 				System.out.println("Dataset<Row> selectedColumnDataSet: "+selectedColumnDataSet.columns().length+" : "+selectedColumnDataSet.count());
-				String[] dropCol = {"_unit_id","_golden","_unit_state","_trusted_judgments","_last_judgment_at","gender:confidence","profile_yn:confidence","created","fav_number","gender_gold","profileimage","profile_yn_gold","tweet_coord","tweet_id","tweet_created","tweet_location",
+				String[] dropCol = {"_golden","_unit_state","_trusted_judgments","_last_judgment_at","gender:confidence","profile_yn:confidence","created","fav_number","gender_gold","profileimage","profile_yn_gold","tweet_coord","tweet_id","tweet_created","tweet_location",
 						"user_timezone"};
 				for(String column: dropCol) {
 					selectedColumnDataSet = selectedColumnDataSet.drop(column);
@@ -155,6 +155,8 @@ public class GenderClassification {
 				Dataset<Row> traindata = dataSplit[0];
 				Dataset<Row> testdata = dataSplit[1];
 				
+				System.out.println("TrainData Row Count  ::"+traindata.count());
+				
 				/*String[] inputCols = {"description","text"};
 				VectorAssembler assembler = new
 						VectorAssembler().setInputCols(new String[]{"description","text"}).setOutputCol("features1");
@@ -163,10 +165,10 @@ public class GenderClassification {
 				
 				String selectedColumn = "description";
 				String selectedColumn2 = "text";
-				traindata = traindata.select(traindata.col("gender"), traindata.col(selectedColumn));
+				traindata = traindata.select(traindata.col("_unit_id"),traindata.col("gender"), traindata.col(selectedColumn), traindata.col(selectedColumn2));
 				traindata.show();
 				
-				testdata = testdata.select(testdata.col("gender"), testdata.col(selectedColumn));
+				testdata = testdata.select(traindata.col("_unit_id"),testdata.col("gender"), testdata.col(selectedColumn),traindata.col(selectedColumn2));
 				testdata.show();
 
 				// transform the String data into categorical variables
@@ -188,11 +190,13 @@ public class GenderClassification {
 				Tokenizer tokenizer = new Tokenizer()
 						.setInputCol(selectedColumn)
 						.setOutputCol("tokenizerwords");
+				//Dataset<Row> df1Tokenizer = tokenizer.transform(traindata);
 				
 				// Remove the stop words
 				StopWordsRemover remover = new StopWordsRemover()
 						.setInputCol(tokenizer.getOutputCol())
 						.setOutputCol("filtered");
+				//Dataset<Row> df1remover = remover.transform(df1Tokenizer);
 				
 				
 				// Create the Term Frequency Matrix
@@ -200,39 +204,79 @@ public class GenderClassification {
 						.setNumFeatures(1000)
 						.setInputCol(remover.getOutputCol())
 						.setOutputCol("numFeatures1");
+				//Dataset<Row> df1Hashinngtf = hashingTF.transform(df1remover);
+				
+				
 
 				// Calculate the Inverse Document Frequency 
 				IDF idf = new IDF()
 						.setInputCol(hashingTF.getOutputCol())
 						.setOutputCol("features1");
 				
+				
+				
 				Pipeline pipeline = new Pipeline().setStages(new PipelineStage [] {tokenizer, remover,hashingTF, idf});
 				PipelineModel model = pipeline.fit(traindata);
-				Dataset<Row> df3 = model.transform(traindata);
-				df3.show();
+				Dataset<Row> df1IdfSet = model.transform(traindata);
+				df1IdfSet.show();
+				System.out.println("df1IdfSet Row Count  ::"+df1IdfSet.count());
 				
-				Tokenizer tokenizer2 = new Tokenizer()
+				/*Tokenizer tokenizer2 = new Tokenizer()
 						.setInputCol(selectedColumn2)
-						.setOutputCol("tokenizerwords2");
-				
+						.setOutputCol("tokenizerwords2");*/
+				tokenizer.setInputCol(selectedColumn2).setOutputCol("tokenizerwords3");
+				Dataset<Row> df4 = tokenizer.transform(df1IdfSet);    
 				// Remove the stop words
-				StopWordsRemover remover2 = new StopWordsRemover()
+				/*StopWordsRemover remover2 = new StopWordsRemover()
 						.setInputCol(tokenizer2.getOutputCol())
-						.setOutputCol("filtered2");
+						.setOutputCol("filtered2");*/
+				
+				remover.setInputCol("tokenizerwords3").setOutputCol("filtered2");
+				//Dataset<Row> df5 = tokenizer.transform(df4); 
 				
 				// Create the Term Frequency Matrix
-				HashingTF hashingTF2 = new HashingTF()
+				/*HashingTF hashingTF2 = new HashingTF()
 						.setNumFeatures(1000)
 						.setInputCol(remover2.getOutputCol())
-						.setOutputCol("numFeatures2");
+						.setOutputCol("numFeatures2");*/
+				hashingTF.setInputCol("filtered2").setOutputCol("numFeatures2");
+				//Dataset<Row> df6 = tokenizer.transform(df5); 
 				
 				// Calculate the Inverse Document Frequency 
-				IDF idf2 = new IDF()
+				/*IDF idf2 = new IDF()
 						.setInputCol(hashingTF2.getOutputCol())
-						.setOutputCol("features2");
+						.setOutputCol("features2");*/
+				idf.setInputCol("numFeatures2").setOutputCol("features2");
+				//Dataset<Row> df7 = tokenizer.transform(df6);
 				
-				String idfColumnn1 = idf.getOutputCol();
-				String idfColumnn2 = idf2.getOutputCol();
+				Pipeline pipeline2 = new Pipeline().setStages(new PipelineStage [] {tokenizer, remover,hashingTF, idf});
+				PipelineModel model2 = pipeline2.fit(traindata);
+				Dataset<Row> df1IdfSet2 = model2.transform(traindata);
+				
+				//df1IdfSet2.show();
+				
+				System.out.println("After second tokenizwer,and hashingTF:");
+				
+				df1IdfSet2 = df1IdfSet2.drop("gender").drop("description").drop("text");
+				df1IdfSet2.show();
+				System.out.println("df1IdfSet2 Row Count  ::"+df1IdfSet2.count());
+				System.out.println("Perform Inner Join Operation");
+				Dataset<Row> df1IdfSetJoined = df1IdfSet.join(df1IdfSet2, "_unit_id");
+				df1IdfSetJoined.printSchema();
+				df1IdfSetJoined.show();
+				System.out.println("df1IdfSetJoined Row Count  ::"+df1IdfSetJoined.count());
+				
+				// Now Assemble Vectors
+				VectorAssembler assembler = new VectorAssembler()
+				        .setInputCols(new String[]{"features1", "features2"})
+				        .setOutputCol("features");
+
+				Dataset<Row> assembledFeatures = assembler.transform(df1IdfSetJoined);
+				
+				assembledFeatures.show();
+				
+				/*String idfColumnn1 = idf.getOutputCol();
+				String idfColumnn2 = idf2.getOutputCol();*/
 
 				
 				
