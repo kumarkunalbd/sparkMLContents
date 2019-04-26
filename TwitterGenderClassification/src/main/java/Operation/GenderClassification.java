@@ -63,7 +63,8 @@ public class GenderClassification {
 
 				// Read the file as a training dataset
 				String pathTrain = "data/gender-classifier.csv";	
-				Dataset<Row> mainDataSet = sparkSession.read().format("csv").option("header","true").option("ignoreLeadingWhiteSpace",false).option("ignoreTrailingWhiteSpace",false).load(pathTrain);
+				//Dataset<Row> mainDataSet = sparkSession.read().format("csv").option("header","true").option("ignoreLeadingWhiteSpace",false).option("ignoreTrailingWhiteSpace",false).load(pathTrain);
+				Dataset<Row> mainDataSet = sparkSession.read().option("header", true).option("inferschema", true).option("mode", "DROPMALFORMED").csv(pathTrain);
 				mainDataSet.printSchema();
 				mainDataSet.describe().show();
 				
@@ -165,19 +166,11 @@ public class GenderClassification {
 				
 				String selectedColumn = "description";
 				String selectedColumn2 = "text";
-				traindata = traindata.select(traindata.col("_unit_id"),traindata.col("gender"), traindata.col(selectedColumn), traindata.col(selectedColumn2));
+				traindata = traindata.select(traindata.col("gender"), traindata.col(selectedColumn), traindata.col(selectedColumn2));
 				traindata.show();
 				
-				testdata = testdata.select(traindata.col("_unit_id"),testdata.col("gender"), testdata.col(selectedColumn),traindata.col(selectedColumn2));
+				testdata = testdata.select(testdata.col("gender"), testdata.col(selectedColumn),traindata.col(selectedColumn2));
 				testdata.show();
-
-				// transform the String data into categorical variables
-				StringIndexer indexer1 = new StringIndexer()
-						.setInputCol("gender")
-						.setOutputCol("gender1");
-				StringIndexer indexer3 = new StringIndexer()
-						.setInputCol("profile_yn")
-						.setOutputCol("profile_yn1");
 				
 				// Configure an ML pipeline, which consists of multiple stages: indexer, tokenizer, hashingTF, idf, lr/rf etc 
 				// and labelindexer.		
@@ -189,13 +182,13 @@ public class GenderClassification {
 				// Tokenize the input text
 				Tokenizer tokenizer = new Tokenizer()
 						.setInputCol(selectedColumn)
-						.setOutputCol("tokenizerwords");
+						.setOutputCol("tokenizerwords1");
 				//Dataset<Row> df1Tokenizer = tokenizer.transform(traindata);
 				
 				// Remove the stop words
 				StopWordsRemover remover = new StopWordsRemover()
 						.setInputCol(tokenizer.getOutputCol())
-						.setOutputCol("filtered");
+						.setOutputCol("filtered1");
 				//Dataset<Row> df1remover = remover.transform(df1Tokenizer);
 				
 				
@@ -215,12 +208,12 @@ public class GenderClassification {
 				
 				
 				
-				Pipeline pipeline = new Pipeline().setStages(new PipelineStage [] {tokenizer, remover,hashingTF, idf});
+				/*Pipeline pipeline = new Pipeline().setStages(new PipelineStage [] {tokenizer, remover,hashingTF, idf});
 				PipelineModel model = pipeline.fit(traindata);
 				Dataset<Row> df1IdfSet = model.transform(traindata);
 				df1IdfSet.show();
 				System.out.println("df1IdfSet Row Count  ::"+df1IdfSet.count());
-				
+				*/
 				Tokenizer tokenizer2 = new Tokenizer()
 						.setInputCol(selectedColumn2)
 						.setOutputCol("tokenizerwords2");
@@ -249,13 +242,13 @@ public class GenderClassification {
 				//idf.setInputCol("numFeatures2").setOutputCol("features2");
 				//Dataset<Row> df7 = tokenizer.transform(df6);
 				
-				Pipeline pipeline2 = new Pipeline().setStages(new PipelineStage [] {tokenizer, remover,hashingTF, idf});
+				/*Pipeline pipeline2 = new Pipeline().setStages(new PipelineStage [] {tokenizer, remover,hashingTF, idf});
 				PipelineModel model2 = pipeline2.fit(traindata);
-				Dataset<Row> df1IdfSet2 = model2.transform(traindata);
+				Dataset<Row> df1IdfSet2 = model2.transform(traindata);*/
 				
 				//df1IdfSet2.show();
 				
-				System.out.println("After second tokenizwer,and hashingTF:");
+				/*System.out.println("After second tokenizwer,and hashingTF:");
 				
 				df1IdfSet2 = df1IdfSet2.drop("gender").drop("description").drop("text");
 				df1IdfSet2.show();
@@ -264,7 +257,7 @@ public class GenderClassification {
 				Dataset<Row> df1IdfSetJoined = df1IdfSet.join(df1IdfSet2, "_unit_id");
 				df1IdfSetJoined.printSchema();
 				df1IdfSetJoined.show();
-				System.out.println("df1IdfSetJoined Row Count  ::"+df1IdfSetJoined.count());
+				System.out.println("df1IdfSetJoined Row Count  ::"+df1IdfSetJoined.count());*/
 				
 				// Now Assemble Vectors
 				VectorAssembler assembler = new VectorAssembler()
@@ -285,9 +278,13 @@ public class GenderClassification {
 				
 				// Set up the Random Forest Model
 				RandomForestClassifier rf = new RandomForestClassifier();
+				rf.setMaxDepth(16);
+				rf.setMinInfoGain(0.0);
 
 				//Set up Decision Tree
 				DecisionTreeClassifier dt = new DecisionTreeClassifier();
+				dt.setMaxDepth(16);
+				dt.setMinInfoGain(0.0);
 
 				// Convert indexed labels back to original labels once prediction is available	
 				IndexToString labelConverter = new IndexToString()
@@ -318,16 +315,17 @@ public class GenderClassification {
 				MulticlassClassificationEvaluator evaluator = new MulticlassClassificationEvaluator()
 						.setLabelCol("label")
 						.setPredictionCol("prediction")
-						.setMetricName("accuracy");		
+						.setMetricName("accuracy");	
 
 				//Evaluate Random Forest
 				double accuracyRF = evaluator.evaluate(predictionsRF);
 				System.out.println("Test Error for Random Forest = " + (1.0 - accuracyRF));
+				System.out.println("Accuracy for Random Forest= " + Math.round(accuracyRF * 100) + " %");
 
 				//Evaluate Decision Tree
 				double accuracyDT = evaluator.evaluate(predictionsDT);
-				System.out.println("Test Error for Decision Tree = " + (1.0 - accuracyDT));
-				
+				System.out.println("Test Error for Decision Tree = " + (1.0 - accuracyDT));	
+				System.out.println("Accuracy for Decision Tree = " + Math.round(accuracyDT * 100) + " %");
 
 	}
 
