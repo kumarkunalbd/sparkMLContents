@@ -17,6 +17,8 @@ import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator;
 import org.apache.spark.ml.feature.HashingTF;
 import org.apache.spark.ml.feature.IDF;
 import org.apache.spark.ml.feature.IndexToString;
+import org.apache.spark.ml.feature.MaxAbsScaler;
+import org.apache.spark.ml.feature.Normalizer;
 import org.apache.spark.ml.feature.StopWordsRemover;
 import org.apache.spark.ml.feature.StringIndexer;
 import org.apache.spark.ml.feature.StringIndexerModel;
@@ -26,9 +28,12 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.api.java.UDF1;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+
+import breeze.linalg.where;
 
 
 public class GenderClassification {
@@ -38,9 +43,13 @@ public class GenderClassification {
 			try {
 				String longStrvalue = String.valueOf(java.lang.Long.parseLong(str.trim(), 16));
 				return longStrvalue;
+				/*Long longValue = java.lang.Long.parseLong(str.trim(), 16);
+				return longValue;*/
+				
 			} catch (Exception e) {
 				// TODO: handle exception
-				return "garbageHexValue";
+				return "-1";
+				//return (long) 0;
 			}
 			
 		}
@@ -67,9 +76,20 @@ public class GenderClassification {
 				Dataset<Row> mainDataSet = sparkSession.read().option("header", true).option("inferschema", true).option("mode", "DROPMALFORMED").csv(pathTrain);
 				mainDataSet.printSchema();
 				mainDataSet.describe().show();
+				System.out.println("mainDataSet Row Count  ::"+mainDataSet.count());
 				
+				/*********** Filtering records for gender female,male and brand *********************/
+				String filteringColumn = "gender";
+				mainDataSet = mainDataSet.filter(col(filteringColumn).equalTo("female").or(col(filteringColumn).equalTo("male").or(col(filteringColumn).equalTo("brand"))));
+				System.out.println("mainDataSet Row Count after filetring ::"+mainDataSet.count());
+				
+				//Removing Rows with missing values
+				System.out.println("********************Removing records with missing values**********************");
+				Dataset<Row> framingDataSet = mainDataSet.select(col("gender"),col("description"),col("link_color"),col("name"),col("sidebar_color"),col("text"));
+				framingDataSet = framingDataSet.na().drop();
+				System.out.println("framingDataSet Row Count after null drop ::"+framingDataSet.count());
 				// drop the columns which are non relevant
-				Dataset<Row> selectedColumnDataSet = mainDataSet;
+				/*Dataset<Row> selectedColumnDataSet = mainDataSet.select(mainDataSet.col("gender"));
 				System.out.println("Dataset<Row> selectedColumnDataSet: "+selectedColumnDataSet.columns().length+" : "+selectedColumnDataSet.count());
 				String[] dropCol = {"_golden","_unit_state","_trusted_judgments","_last_judgment_at","gender:confidence","profile_yn:confidence","created","fav_number","gender_gold","profileimage","profile_yn_gold","tweet_coord","tweet_id","tweet_created","tweet_location",
 						"user_timezone"};
@@ -80,77 +100,38 @@ public class GenderClassification {
 
 				selectedColumnDataSet.show();
 				selectedColumnDataSet.printSchema();
-				selectedColumnDataSet.describe().show();
-				
-				// Filtering the null values
-				/*Dataset<Row> containingNullsGender =  selectedColumnDataSet.where(selectedColumnDataSet.col("gender").isNull());
-				containingNullsGender.show();
-				System.out.println("Dataset<Row> containingNullsGender: "+containingNullsGender.count());*/
-				
-				/*Dataset<Row> containingNullsGenderConf =  selectedColumnDataSet.where(selectedColumnDataSet.col("gender:confidence").isNull());
-				containingNullsGenderConf.show();
-				System.out.println("Dataset<Row> containingNullsGenderConf: "+containingNullsGenderConf.count());*/
-				
-				/*Dataset<Row> containingNullsprofile_yn =  selectedColumnDataSet.where(selectedColumnDataSet.col("profile_yn").isNull());
-				containingNullsprofile_yn.show();
-				System.out.println("Dataset<Row> containingNullsprofile_yn: "+containingNullsprofile_yn.count());*/
-				
-				/*Dataset<Row> containingNullsprofile_ynConf =  selectedColumnDataSet.where(selectedColumnDataSet.col("profile_yn:confidence").isNull());
-				containingNullsprofile_ynConf.show();
-				System.out.println("Dataset<Row> containingNullsprofile_ynConf: "+containingNullsprofile_ynConf.count());*/
-				
-				/*Dataset<Row> containingNullsdescription =  selectedColumnDataSet.where(selectedColumnDataSet.col("description").isNull());
-				containingNullsdescription.show();
-				System.out.println("Dataset<Row> containingNullsdescription: "+containingNullsdescription.count());*/
-				
-				/*Dataset<Row> containingNullsFavnum =  selectedColumnDataSet.where(selectedColumnDataSet.col("fav_number").isNull());
-				containingNullsFavnum.show();
-				System.out.println("Dataset<Row> containingNullsFavnum: "+containingNullsFavnum.count());*/
-				
-				/*Dataset<Row> containingNullsLinkColor =  selectedColumnDataSet.where(selectedColumnDataSet.col("link_color").isNull());
-				containingNullsLinkColor.show();
-				System.out.println("Dataset<Row> containingNullsLinkColor: "+containingNullsLinkColor.count());*/
-				
-				/*Dataset<Row> containingNullsName =  selectedColumnDataSet.where(selectedColumnDataSet.col("name").isNull());
-				containingNullsName.show();
-				System.out.println("Dataset<Row> containingNullsName: "+containingNullsName.count());*/
-				
-				/*Dataset<Row> containingNullsRetweetCounnt=  selectedColumnDataSet.where(selectedColumnDataSet.col("retweet_count").isNull());
-				containingNullsRetweetCounnt.show();
-				System.out.println("Dataset<Row> containingNullsRetweetCounnt: "+containingNullsRetweetCounnt.count());
-				
-				Dataset<Row> containingNullsSidebarColor=  selectedColumnDataSet.where(selectedColumnDataSet.col("sidebar_color").isNull());
-				containingNullsSidebarColor.show();
-				System.out.println("Dataset<Row> containingNullsSidebarColor: "+containingNullsSidebarColor.count());
-				
-				
-				Dataset<Row> containingNullsText=  selectedColumnDataSet.where(selectedColumnDataSet.col("text").isNull());
-				containingNullsText.show();
-				System.out.println("Dataset<Row> containingNullsText: "+containingNullsText.count());
-				
-				
-				Dataset<Row> containingNullstweet_count=  selectedColumnDataSet.where(selectedColumnDataSet.col("tweet_count").isNull());
-				containingNullstweet_count.show();
-				System.out.println("Dataset<Row> containingNullstweet_count: "+containingNullstweet_count.count());*/
+				selectedColumnDataSet.describe().show();*/
 				
 				
 				
 				// drop the rows containing any null or NaN values
-				selectedColumnDataSet = selectedColumnDataSet.na().drop();
+				/*selectedColumnDataSet = selectedColumnDataSet.na().drop();
 				System.out.println("Droping Rows containing null in csv: "+selectedColumnDataSet.columns().length+" : "+selectedColumnDataSet.count());
-				selectedColumnDataSet.show();
+				selectedColumnDataSet.show();*/
 				
 				//Label - HextoLong - process to convert it to a double variable
+				Dataset<Row> selectedColumnDataSet = framingDataSet;
+				selectedColumnDataSet.printSchema();
+				selectedColumnDataSet.show();
 				sparkSession.udf().register("toHexLong", hexToLong, DataTypes.StringType);
 				selectedColumnDataSet = selectedColumnDataSet.withColumn("link_color_long", callUDF("toHexLong", selectedColumnDataSet.col("link_color"))).drop("link_color");
 				selectedColumnDataSet = selectedColumnDataSet.withColumn("sidebar_color_long", callUDF("toHexLong", selectedColumnDataSet.col("sidebar_color"))).drop("sidebar_color");
 				System.out.println("After HexToLong csv: "+selectedColumnDataSet.columns().length+" : "+selectedColumnDataSet.count());
+				System.out.println("********************selectedColumnDataSet after changing values of linkcolor and sidecolor to long**********************");
 				selectedColumnDataSet.printSchema();
 				selectedColumnDataSet.show();
-				
-				 
-				
-				
+				System.out.println("********************selectedColumnDataSet femoving garbage link_color and sidebar color**********************");
+				selectedColumnDataSet = selectedColumnDataSet.filter(col("link_color_long").notEqual("0").and(col("link_color_long").notEqual("-1")));
+				System.out.println("selectedColumnDataSet femoving garbage link_color: " +selectedColumnDataSet.count());
+				selectedColumnDataSet = selectedColumnDataSet.filter(col("sidebar_color_long").notEqual("0").and(col("sidebar_color_long").notEqual("-1")));
+				System.out.println("selectedColumnDataSet femoving garbage sidebar_color_long: " +selectedColumnDataSet.count());
+				selectedColumnDataSet.printSchema();
+				selectedColumnDataSet.show();
+				/*System.out.println("********************selectedColumnDataSet after casting link color and side bar color**********************");
+				selectedColumnDataSet = selectedColumnDataSet.select(col("gender"),col("description"),col("link_color_long").cast(DataTypes.LongType),col("name"),col("sidebar_color_long").cast(DataTypes.LongType),col("text"));
+				selectedColumnDataSet.printSchema();
+				selectedColumnDataSet.show();	*/			
+								 				
 				// Split data into Training and testing
 				Dataset<Row>[] dataSplit = selectedColumnDataSet.randomSplit(new double[] { 0.7, 0.3 });
 				Dataset<Row> traindata = dataSplit[0];
@@ -166,10 +147,14 @@ public class GenderClassification {
 				
 				String selectedColumn = "description";
 				String selectedColumn2 = "text";
-				traindata = traindata.select(traindata.col("gender"), traindata.col(selectedColumn), traindata.col(selectedColumn2));
+				String selectedColumn3 = "name";
+				String selectedColumn4 = "link_color_long";
+				String selectedColumn5 = "sidebar_color_long";
+				
+				traindata = traindata.select(traindata.col("gender"), traindata.col(selectedColumn), traindata.col(selectedColumn3),traindata.col(selectedColumn2),traindata.col(selectedColumn4),traindata.col(selectedColumn5));
 				traindata.show();
 				
-				testdata = testdata.select(testdata.col("gender"), testdata.col(selectedColumn),traindata.col(selectedColumn2));
+				testdata = testdata.select(testdata.col("gender"), testdata.col(selectedColumn),traindata.col(selectedColumn3),traindata.col(selectedColumn2),traindata.col(selectedColumn4),traindata.col(selectedColumn5));
 				testdata.show();
 				
 				// Configure an ML pipeline, which consists of multiple stages: indexer, tokenizer, hashingTF, idf, lr/rf etc 
@@ -242,6 +227,61 @@ public class GenderClassification {
 				//idf.setInputCol("numFeatures2").setOutputCol("features2");
 				//Dataset<Row> df7 = tokenizer.transform(df6);
 				
+				/* Idf for 3rd column */
+				
+				Tokenizer tokenizer3 = new Tokenizer()
+						.setInputCol(selectedColumn3)
+						.setOutputCol("tokenizerwords3");
+				
+				StopWordsRemover remover3 = new StopWordsRemover()
+						.setInputCol(tokenizer3.getOutputCol())
+						.setOutputCol("filtered3");
+				
+				HashingTF hashingTF3 = new HashingTF()
+						.setNumFeatures(1000)
+						.setInputCol(remover3.getOutputCol())
+						.setOutputCol("numFeatures3");
+				
+				IDF idf3 = new IDF()
+						.setInputCol(hashingTF3.getOutputCol())
+						.setOutputCol("features3");
+				
+				/* String indexing and tokenizing for link_color and side color*/
+				Tokenizer tokenizer4 = new Tokenizer()
+						.setInputCol(selectedColumn4)
+						.setOutputCol("tokenizerwords4");
+				
+				HashingTF hashingTF4 = new HashingTF()
+						.setNumFeatures(1000)
+						.setInputCol(tokenizer4.getOutputCol())
+						.setOutputCol("numFeatures4");
+				
+				IDF idf4 = new IDF()
+						.setInputCol(hashingTF4.getOutputCol())
+						.setOutputCol("features4");
+				
+				Tokenizer tokenizer5 = new Tokenizer()
+						.setInputCol(selectedColumn5)
+						.setOutputCol("tokenizerwords5");
+				
+				HashingTF hashingTF5 = new HashingTF()
+						.setNumFeatures(1000)
+						.setInputCol(tokenizer5.getOutputCol())
+						.setOutputCol("numFeatures5");
+				
+				IDF idf5 = new IDF()
+						.setInputCol(hashingTF5.getOutputCol())
+						.setOutputCol("features5");
+				
+				
+				
+				 //Assembling the features in the dataFrame as Dense Vector
+		        VectorAssembler assemblerColors = new VectorAssembler()
+		                .setInputCols(new String[]{"link_color_label","sidebar_color_label"})
+		                .setOutputCol("featuresColor");
+		        
+		        
+				
 				/*Pipeline pipeline2 = new Pipeline().setStages(new PipelineStage [] {tokenizer, remover,hashingTF, idf});
 				PipelineModel model2 = pipeline2.fit(traindata);
 				Dataset<Row> df1IdfSet2 = model2.transform(traindata);*/
@@ -261,8 +301,22 @@ public class GenderClassification {
 				
 				// Now Assemble Vectors
 				VectorAssembler assembler = new VectorAssembler()
-				        .setInputCols(new String[]{"features1", "features2"})
+				        .setInputCols(new String[]{"features1", "features2", "features3","features4"})
 				        .setOutputCol("features");
+				
+				//Scaling the features between 0-1
+				MaxAbsScaler scaler = new MaxAbsScaler() //Performing MaxAbsScaler() Transformation
+						.setInputCol("features")
+						.setOutputCol("scaledFeatures");
+				
+
+				//*********************************************Normalizing the Vector*********************************************************************
+
+				//Normalizing the vector. Converts vector to a unit vector
+				Normalizer normalizer = new Normalizer() //Performing Normalizer() Transformation
+						.setInputCol("scaledFeatures")
+						.setOutputCol("normFeatures")
+						.setP(2.0);
 
 				//Dataset<Row> assembledFeatures = assembler.transform(df1IdfSetJoined);
 				
@@ -280,11 +334,13 @@ public class GenderClassification {
 				RandomForestClassifier rf = new RandomForestClassifier();
 				rf.setMaxDepth(16);
 				rf.setMinInfoGain(0.0);
+				
 
 				//Set up Decision Tree
 				DecisionTreeClassifier dt = new DecisionTreeClassifier();
 				dt.setMaxDepth(16);
 				dt.setMinInfoGain(0.0);
+				
 
 				// Convert indexed labels back to original labels once prediction is available	
 				IndexToString labelConverter = new IndexToString()
@@ -293,7 +349,7 @@ public class GenderClassification {
 				
 				// Create and Run Random Forest Pipeline
 				Pipeline pipelineRF = new Pipeline()
-						.setStages(new PipelineStage[] {labelindexer, tokenizer, remover,hashingTF,idf,tokenizer2,remover2,hashingTF2,idf2,assembler,rf,labelConverter});	
+						.setStages(new PipelineStage[] {labelindexer,tokenizer, remover,hashingTF,idf,tokenizer2,remover2,hashingTF2,idf2,tokenizer3,remover3,hashingTF3,idf3,tokenizer4,hashingTF4,idf4,assembler,scaler,normalizer,rf,labelConverter});	
 				// Fit the pipeline to training documents.
 				PipelineModel modelRF = pipelineRF.fit(traindata);		
 				// Make predictions on test documents.
@@ -303,7 +359,7 @@ public class GenderClassification {
 
 				// Create and Run Decision Tree Pipeline
 				Pipeline pipelineDT = new Pipeline()
-						.setStages(new PipelineStage[] {labelindexer, tokenizer, remover,hashingTF, idf,tokenizer2,remover2, hashingTF2,idf2,assembler,dt,labelConverter});	
+						.setStages(new PipelineStage[] {labelindexer,tokenizer, remover,hashingTF, idf,tokenizer2,remover2, hashingTF2,idf2,tokenizer3,remover3,hashingTF3,idf3,tokenizer4,hashingTF4,idf4,assembler,scaler,normalizer,dt,labelConverter});	
 				// Fit the pipeline to training documents.
 				PipelineModel modelDT = pipelineDT.fit(traindata);		
 				// Make predictions on test documents.
