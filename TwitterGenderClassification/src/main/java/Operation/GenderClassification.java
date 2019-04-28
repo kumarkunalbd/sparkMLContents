@@ -38,7 +38,11 @@ import breeze.linalg.where;
 
 public class GenderClassification {
 	
+	
+	/************** UDf for converying the hex string into Long String ***************/
 	private static UDF1 hexToLong = new UDF1<String, String>() {
+		
+		
 		public String call(final String str) throws Exception {
 			try {
 				String longStrvalue = String.valueOf(java.lang.Long.parseLong(str.trim(), 16));
@@ -132,6 +136,8 @@ public class GenderClassification {
 				selectedColumnDataSet.printSchema();
 				selectedColumnDataSet.show();	*/			
 								 				
+				
+				/******** Splitting the data into trainng and test data  ******************/
 				// Split data into Training and testing
 				Dataset<Row>[] dataSplit = selectedColumnDataSet.randomSplit(new double[] { 0.7, 0.3 });
 				Dataset<Row> traindata = dataSplit[0];
@@ -145,6 +151,9 @@ public class GenderClassification {
 				Dataset<Row> combinedDataSet = assembler.transform(selectedColumnDataSet).select("gender","features1");
 				combinedDataSet.show();*/
 				
+				
+				/**********************  Model Building Starts from here ************************/
+				
 				String selectedColumn = "description";
 				String selectedColumn2 = "text";
 				String selectedColumn3 = "name";
@@ -154,7 +163,7 @@ public class GenderClassification {
 				traindata = traindata.select(traindata.col("gender"), traindata.col(selectedColumn), traindata.col(selectedColumn3),traindata.col(selectedColumn2),traindata.col(selectedColumn4),traindata.col(selectedColumn5));
 				traindata.show();
 				
-				testdata = testdata.select(testdata.col("gender"), testdata.col(selectedColumn),traindata.col(selectedColumn3),traindata.col(selectedColumn2),traindata.col(selectedColumn4),traindata.col(selectedColumn5));
+				testdata = testdata.select(testdata.col("gender"), testdata.col(selectedColumn),testdata.col(selectedColumn3),testdata.col(selectedColumn2),testdata.col(selectedColumn4),testdata.col(selectedColumn5));
 				testdata.show();
 				
 				// Configure an ML pipeline, which consists of multiple stages: indexer, tokenizer, hashingTF, idf, lr/rf etc 
@@ -333,13 +342,13 @@ public class GenderClassification {
 				// Set up the Random Forest Model
 				RandomForestClassifier rf = new RandomForestClassifier();
 				rf.setMaxDepth(16);
-				rf.setMinInfoGain(0.0);
+				rf.setMinInfoGain(0.0001);
 				
 
 				//Set up Decision Tree
 				DecisionTreeClassifier dt = new DecisionTreeClassifier();
 				dt.setMaxDepth(16);
-				dt.setMinInfoGain(0.0);
+				dt.setMinInfoGain(0.0015);
 				
 
 				// Convert indexed labels back to original labels once prediction is available	
@@ -356,6 +365,7 @@ public class GenderClassification {
 				Dataset<Row> predictionsRF = modelRF.transform(testdata);
 				System.out.println("Predictions from Random Forest Model are:");
 				predictionsRF.show(10);
+				
 
 				// Create and Run Decision Tree Pipeline
 				Pipeline pipelineDT = new Pipeline()
@@ -384,11 +394,26 @@ public class GenderClassification {
 				System.out.println("Test Error for Random Forest = " + (1.0 - accuracyRF));
 				System.out.println("Accuracy for Random Forest= " + Math.round(accuracyRF * 100) + " %");
 				
+				/*********** To check overfitting of Random forest **********/
+				Dataset<Row> predictionsRFTrainData = modelRF.transform(traindata);
+				double accuracyRFTrainData = evaluator.evaluate(predictionsRFTrainData);
+				System.out.println("Train Data Accuracy for Random Forest= " + Math.round(accuracyRF * 100) + " %");
+				
+				/*********** To check overfitting of Random forest **********/
+
+				
 
 				//Evaluate Decision Tree
 				double accuracyDT = evaluator.evaluate(predictionsDT);
 				System.out.println("Test Error for Decision Tree = " + (1.0 - accuracyDT));	
 				System.out.println("Accuracy for Decision Tree = " + Math.round(accuracyDT * 100) + " %");
+				
+				
+				/*********** To check overfitting of decision tree **********/
+				Dataset<Row> predictionsDTTrainData = modelRF.transform(traindata);
+				double accuracyDTTrainData = evaluator.evaluate(predictionsDTTrainData);
+				System.out.println("Train DAta Accuracy for Decisoon Tree= " + Math.round(accuracyDTTrainData * 100) + " %");
+				/*********** To check overfitting of decision tree **********/
 				
 				MulticlassClassificationEvaluator evaluatorPrecision = new MulticlassClassificationEvaluator()
 						.setLabelCol("label")
@@ -400,7 +425,7 @@ public class GenderClassification {
 				
 				//Evaluate Decision Tree
 				double precisionDT = evaluatorPrecision.evaluate(predictionsDT);
-				System.out.println("Precision for Random Forest= " + precisionDT);
+				System.out.println("Precision for Decision Tree = " + precisionDT);
 				
 				MulticlassClassificationEvaluator evaluatorRecall = new MulticlassClassificationEvaluator()
 						.setLabelCol("label")
@@ -412,13 +437,13 @@ public class GenderClassification {
 				
 				//Evaluate Decision Tree
 				double recallDT = evaluatorRecall.evaluate(predictionsDT);
-				System.out.println("Recall for Random Forest= " + recallDT);
+				System.out.println("Recall for Decision Tree= " + recallDT);
 				
 				double fscoreRF = 2*precisionRF*recallRF/(precisionRF+recallRF);
 				System.out.println("fScroe for Random Forest= " + fscoreRF);
 				
 				double fscoreDT = 2*precisionDT*recallDT/(precisionDT+recallDT);
-				System.out.println("fScroe for Random Forest= " + fscoreDT);
+				System.out.println("fScroe for Decision Tree= " + fscoreDT);
 				
 	}
 
