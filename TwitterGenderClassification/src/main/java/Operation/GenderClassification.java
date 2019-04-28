@@ -80,7 +80,7 @@ public class GenderClassification {
 				
 				/*********** Filtering records for gender female,male and brand *********************/
 				String filteringColumn = "gender";
-				mainDataSet = mainDataSet.filter(col(filteringColumn).equalTo("female").or(col(filteringColumn).equalTo("male").or(col(filteringColumn).equalTo("brand"))));
+				mainDataSet = mainDataSet.filter(col(filteringColumn).equalTo("female").or(col(filteringColumn).equalTo("male")));
 				System.out.println("mainDataSet Row Count after filetring ::"+mainDataSet.count());
 				
 				//Removing Rows with missing values
@@ -349,7 +349,7 @@ public class GenderClassification {
 				
 				// Create and Run Random Forest Pipeline
 				Pipeline pipelineRF = new Pipeline()
-						.setStages(new PipelineStage[] {labelindexer,tokenizer, remover,hashingTF,idf,tokenizer2,remover2,hashingTF2,idf2,tokenizer3,remover3,hashingTF3,idf3,tokenizer4,hashingTF4,idf4,assembler,scaler,normalizer,rf,labelConverter});	
+						.setStages(new PipelineStage[] {labelindexer,tokenizer, remover,hashingTF,idf,tokenizer2,remover2,hashingTF2,idf2,tokenizer3,remover3,hashingTF3,idf3,tokenizer4,hashingTF4,idf4,tokenizer5,hashingTF5,idf5,assembler,scaler,normalizer,rf,labelConverter});	
 				// Fit the pipeline to training documents.
 				PipelineModel modelRF = pipelineRF.fit(traindata);		
 				// Make predictions on test documents.
@@ -367,6 +367,12 @@ public class GenderClassification {
 				System.out.println("Predictions from Decision Tree Model are:");
 				predictionsDT.show(10);	
 				
+				/*************************Model Evaluation*********************/
+				
+				//View confusion matrix
+				System.out.println("Confusion Matrix from Decision Tree :");
+				predictionsDT.groupBy(col("label"),col("predictedLabel")).count().show();
+				
 				// Select (prediction, true label) and compute test error.
 				MulticlassClassificationEvaluator evaluator = new MulticlassClassificationEvaluator()
 						.setLabelCol("label")
@@ -377,12 +383,43 @@ public class GenderClassification {
 				double accuracyRF = evaluator.evaluate(predictionsRF);
 				System.out.println("Test Error for Random Forest = " + (1.0 - accuracyRF));
 				System.out.println("Accuracy for Random Forest= " + Math.round(accuracyRF * 100) + " %");
+				
 
 				//Evaluate Decision Tree
 				double accuracyDT = evaluator.evaluate(predictionsDT);
 				System.out.println("Test Error for Decision Tree = " + (1.0 - accuracyDT));	
 				System.out.println("Accuracy for Decision Tree = " + Math.round(accuracyDT * 100) + " %");
-
+				
+				MulticlassClassificationEvaluator evaluatorPrecision = new MulticlassClassificationEvaluator()
+						.setLabelCol("label")
+						.setPredictionCol("prediction")
+						.setMetricName("weightedPrecision");
+				//Evaluate Random Forest
+				double precisionRF = evaluatorPrecision.evaluate(predictionsRF);
+				System.out.println("Precision for Random Forest= " + precisionRF);
+				
+				//Evaluate Decision Tree
+				double precisionDT = evaluatorPrecision.evaluate(predictionsDT);
+				System.out.println("Precision for Random Forest= " + precisionDT);
+				
+				MulticlassClassificationEvaluator evaluatorRecall = new MulticlassClassificationEvaluator()
+						.setLabelCol("label")
+						.setPredictionCol("prediction")
+						.setMetricName("weightedRecall");
+				//Evaluate Random Forest
+				double recallRF = evaluatorRecall.evaluate(predictionsRF);
+				System.out.println("Recall for Random Forest= " + recallRF);
+				
+				//Evaluate Decision Tree
+				double recallDT = evaluatorRecall.evaluate(predictionsDT);
+				System.out.println("Recall for Random Forest= " + recallDT);
+				
+				double fscoreRF = 2*precisionRF*recallRF/(precisionRF+recallRF);
+				System.out.println("fScroe for Random Forest= " + fscoreRF);
+				
+				double fscoreDT = 2*precisionDT*recallDT/(precisionDT+recallDT);
+				System.out.println("fScroe for Random Forest= " + fscoreDT);
+				
 	}
 
 }
